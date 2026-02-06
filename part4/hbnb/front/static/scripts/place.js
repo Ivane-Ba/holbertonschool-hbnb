@@ -71,13 +71,14 @@ function displayPlaceDetails(place, reviews) {
     const gallery = document.createElement('div');
     gallery.className = 'place-image-gallery';
 
-    // Image principale
+    // Image principale (index courant pour le modal)
+    let currentImageIndex = 0;
     const mainImg = document.createElement('img');
     mainImg.src = images[0].url;
     mainImg.className = 'place-detail-img';
     mainImg.tabIndex = 0;
     mainImg.alt = place.title || 'Photo';
-    mainImg.onclick = () => showModalImage(mainImg.src);
+    mainImg.onclick = () => showModalImage(images, currentImageIndex);
     gallery.appendChild(mainImg);
 
     // Miniatures
@@ -90,6 +91,7 @@ function displayPlaceDetails(place, reviews) {
             t.className = 'thumb-img' + (idx === 0 ? ' selected' : '');
             t.tabIndex = 0;
             t.onclick = () => {
+                currentImageIndex = idx;
                 mainImg.src = img.url;
                 thumbs.querySelectorAll('.thumb-img').forEach(th => th.classList.remove('selected'));
                 t.classList.add('selected');
@@ -207,21 +209,56 @@ function displayPlaceDetails(place, reviews) {
     }
 }
 
-// ZOOM IMAGE
-function showModalImage(url) {
+// ZOOM IMAGE avec flèches de défilement
+function showModalImage(images, currentIndex) {
+    if (!images || !images.length) return;
+    const urls = images.map(img => (typeof img === 'string' ? img : img.url));
+    let index = Math.max(0, Math.min(currentIndex, urls.length - 1));
+    const hasMultiple = urls.length > 1;
+
     let modal = document.createElement('div');
-    modal.style.cssText = `
-      position:fixed; z-index:9999; inset:0; background:rgba(12,22,31,0.97);
-      display:flex; align-items:center; justify-content:center;
-      animation:fadeIn .18s;
-    `;
+    modal.className = 'modal-image-wrap';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-label', 'Galerie image');
     modal.innerHTML = `
-      <img src="${url}" style="max-width:98vw; max-height:96vh; border-radius:18px; box-shadow:0 4px 38px #00f7ff88;">
-      <span style="position:absolute;top:30px;right:45px;font-size:2.7rem;color:#fff;cursor:pointer;z-index:99;" id="close-modal-img">&times;</span>
+      <button type="button" class="modal-arrow modal-arrow-left" aria-label="Image précédente" ${!hasMultiple ? 'disabled style="visibility:hidden"' : ''}>&#10094;</button>
+      <div class="modal-image-container">
+        <img src="${urls[index]}" alt="Photo ${index + 1}/${urls.length}" class="modal-image-main">
+        <span class="modal-image-counter">${index + 1} / ${urls.length}</span>
+      </div>
+      <button type="button" class="modal-arrow modal-arrow-right" aria-label="Image suivante" ${!hasMultiple ? 'disabled style="visibility:hidden"' : ''}>&#10095;</button>
+      <button type="button" class="modal-close" id="close-modal-img" aria-label="Fermer">&times;</button>
     `;
     document.body.appendChild(modal);
-    function close() { document.body.removeChild(modal); }
-    modal.onclick = close;
-    document.getElementById('close-modal-img').onclick = close;
-    modal.querySelector('img').onclick = (e) => e.stopPropagation();
+
+    const imgEl = modal.querySelector('.modal-image-main');
+    const counterEl = modal.querySelector('.modal-image-counter');
+    const btnPrev = modal.querySelector('.modal-arrow-left');
+    const btnNext = modal.querySelector('.modal-arrow-right');
+
+    function go(delta) {
+        if (!hasMultiple) return;
+        index = (index + delta + urls.length) % urls.length;
+        imgEl.src = urls[index];
+        imgEl.alt = `Photo ${index + 1}/${urls.length}`;
+        counterEl.textContent = `${index + 1} / ${urls.length}`;
+    }
+
+    function close() {
+        document.body.removeChild(modal);
+        document.removeEventListener('keydown', onKey);
+    }
+
+    function onKey(e) {
+        if (e.key === 'Escape') close();
+        if (e.key === 'ArrowLeft') go(-1);
+        if (e.key === 'ArrowRight') go(1);
+    }
+
+    modal.onclick = (e) => { if (e.target === modal) close(); };
+    modal.querySelector('.modal-close').onclick = close;
+    modal.querySelector('.modal-image-container').onclick = (e) => e.stopPropagation();
+    btnPrev.onclick = (e) => { e.stopPropagation(); go(-1); };
+    btnNext.onclick = (e) => { e.stopPropagation(); go(1); };
+    document.addEventListener('keydown', onKey);
 }
